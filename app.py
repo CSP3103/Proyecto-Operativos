@@ -610,109 +610,259 @@ def explore():
     if lat and lon:
         try:
             query = f"""
-            [out:json][timeout:15];
+            [out:json][timeout:20];
             (
-              node["tourism"="attraction"](around:10000,{lat},{lon});
-              node["historic"="monument"](around:10000,{lat},{lon});
-              node["tourism"="museum"](around:10000,{lat},{lon});
-              way["tourism"="attraction"](around:10000,{lat},{lon});
-              way["historic"="monument"](around:10000,{lat},{lon});
+              node["tourism"](around:15000,{lat},{lon});
+              node["historic"](around:15000,{lat},{lon});
+              node["leisure"="park"](around:15000,{lat},{lon});
+              way["tourism"](around:15000,{lat},{lon});
+              way["historic"](around:15000,{lat},{lon});
+              relation["tourism"](around:15000,{lat},{lon});
             );
-            out center limit 10;
+            out center limit 15;
             """
-            op = requests.post("https://overpass-api.de/api/interpreter", data={"data": query}, timeout=20)
+            op = requests.post("https://overpass-api.de/api/interpreter", data={"data": query}, timeout=25)
             if op.status_code == 200:
                 elements = op.json().get("elements", [])
-                for el in elements[:8]:
+                seen = set()
+                for el in elements:
                     tags = el.get("tags", {})
-                    name = tags.get("name", "").strip()
-                    if not name or len(name) < 3:
+                    name = tags.get("name:es") or tags.get("name", "").strip()
+                    if not name or len(name) < 3 or name in seen:
                         continue
+                    seen.add(name)
+                    
                     if el.get("type") == "node":
                         p_lat, p_lon = el.get("lat"), el.get("lon")
                     else:
                         center = el.get("center", {})
                         p_lat, p_lon = center.get("lat"), center.get("lon")
+                    
                     if not p_lat:
                         continue
+                    
+                    place_type = "attraction"
+                    icon = "📍"
+                    type_label = tags.get("tourism", tags.get("historic", "Lugar Turístico"))
+                    
+                    if "museum" in str(tags).lower():
+                        icon = "🖼️"
+                        place_type = "museum"
+                    elif "park" in str(tags).lower():
+                        icon = "🌳"
+                        place_type = "park"
+                    elif "church" in str(tags).lower() or "cathedral" in str(tags).lower():
+                        icon = "⛪"
+                        place_type = "place_of_worship"
+                    elif "castle" in str(tags).lower() or "fort" in str(tags).lower():
+                        icon = "🏰"
+                        place_type = "castle"
+                    elif "monument" in str(tags).lower():
+                        icon = "🗿"
+                        place_type = "monument"
+                    
                     places_list.append({
                         "name": name,
-                        "type": "attraction",
-                        "icon": "📍",
-                        "label": "Lugar Turístico",
+                        "type": place_type,
+                        "icon": icon,
+                        "label": type_label.capitalize() if type_label else "Lugar Turístico",
                         "address": tags.get("addr:street", ""),
                         "website": tags.get("website", ""),
                         "wikipedia": "",
                         "lat": p_lat,
                         "lon": p_lon,
                     })
+                    
+                    if len(places_list) >= 8:
+                        break
         except Exception as e:
             print(f"Error places: {e}")
+    
+    # Lugares por defecto si no encuentra nada
+    if not places_list:
+        default_places = {
+            "oslo": [
+                {"name": "Ópera de Oslo", "icon": "🎭", "label": "Teatro"},
+                {"name": "Parque Vigeland", "icon": "🗿", "label": "Parque"},
+                {"name": "Museo del Barco Vikingo", "icon": "🚢", "label": "Museo"},
+                {"name": "Fortaleza de Akershus", "icon": "🏰", "label": "Castillo"},
+                {"name": "Palacio Real", "icon": "👑", "label": "Palacio"},
+            ],
+            "paris": [
+                {"name": "Torre Eiffel", "icon": "🗼", "label": "Monumento"},
+                {"name": "Museo del Louvre", "icon": "🖼️", "label": "Museo"},
+                {"name": "Catedral de Notre Dame", "icon": "⛪", "label": "Catedral"},
+                {"name": "Arco del Triunfo", "icon": "🏛️", "label": "Monumento"},
+                {"name": "Montmartre", "icon": "🎨", "label": "Barrio"},
+            ],
+            "london": [
+                {"name": "Big Ben", "icon": "🕰️", "label": "Monumento"},
+                {"name": "London Eye", "icon": "🎡", "label": "Mirador"},
+                {"name": "Museo Británico", "icon": "🏛️", "label": "Museo"},
+                {"name": "Torre de Londres", "icon": "🏰", "label": "Castillo"},
+                {"name": "Buckingham Palace", "icon": "👑", "label": "Palacio"},
+            ],
+            "madrid": [
+                {"name": "Palacio Real", "icon": "👑", "label": "Palacio"},
+                {"name": "Museo del Prado", "icon": "🖼️", "label": "Museo"},
+                {"name": "Parque del Retiro", "icon": "🌳", "label": "Parque"},
+                {"name": "Plaza Mayor", "icon": "🏛️", "label": "Plaza"},
+                {"name": "Puerta del Sol", "icon": "📍", "label": "Plaza"},
+            ],
+            "barcelona": [
+                {"name": "Sagrada Familia", "icon": "⛪", "label": "Basílica"},
+                {"name": "Park Güell", "icon": "🌳", "label": "Parque"},
+                {"name": "Casa Batlló", "icon": "🏠", "label": "Arquitectura"},
+                {"name": "Ramblas", "icon": "🚶", "label": "Paseo"},
+            ],
+        }
+        
+        city_lower = city.lower()
+        default_list = []
+        for key, places in default_places.items():
+            if key in city_lower:
+                default_list = places
+                break
+        
+        if not default_list:
+            default_list = [
+                {"name": "Plaza Principal", "icon": "🏛️", "label": "Plaza"},
+                {"name": "Catedral", "icon": "⛪", "label": "Catedral"},
+                {"name": "Museo de la Ciudad", "icon": "🖼️", "label": "Museo"},
+                {"name": "Parque Central", "icon": "🌳", "label": "Parque"},
+                {"name": "Mirador", "icon": "🔭", "label": "Mirador"},
+            ]
+        
+        for place in default_list[:8]:
+            places_list.append({
+                "name": place["name"],
+                "type": "attraction",
+                "icon": place["icon"],
+                "label": place["label"],
+                "address": "",
+                "website": "",
+                "wikipedia": "",
+                "lat": lat,
+                "lon": lon,
+            })
 
     # ========== 7. WIKIPEDIA ==========
     wiki_data = {}
+    
+    # Limpiar nombre para Wikipedia
+    wiki_city = city.replace(" ", "_")
+    
     try:
-        r = requests.get(f"https://es.wikipedia.org/api/rest_v1/page/summary/{city}", timeout=8)
+        # Intentar español
+        url = f"https://es.wikipedia.org/api/rest_v1/page/summary/{wiki_city}"
+        r = requests.get(url, timeout=8, headers={"User-Agent": "TravelScope/2.0"})
         if r.status_code == 200:
             d = r.json()
-            if d.get("extract"):
+            if d.get("extract") and len(d.get("extract", "")) > 100:
                 wiki_data = {
                     "title": d.get("title", city),
-                    "summary": d.get("extract", "")[:500],
+                    "summary": d.get("extract", "")[:600],
                     "image_url": (d.get("thumbnail") or {}).get("source", ""),
                     "wiki_url": d.get("content_urls", {}).get("desktop", {}).get("page", ""),
                 }
-        else:
-            r = requests.get(f"https://en.wikipedia.org/api/rest_v1/page/summary/{city}", timeout=8)
+    except:
+        pass
+    
+    # Si no, probar inglés
+    if not wiki_data:
+        try:
+            url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{wiki_city}"
+            r = requests.get(url, timeout=8, headers={"User-Agent": "TravelScope/2.0"})
             if r.status_code == 200:
                 d = r.json()
                 if d.get("extract"):
                     wiki_data = {
                         "title": d.get("title", city),
-                        "summary": d.get("extract", "")[:500],
+                        "summary": d.get("extract", "")[:600],
                         "image_url": (d.get("thumbnail") or {}).get("source", ""),
                         "wiki_url": d.get("content_urls", {}).get("desktop", {}).get("page", ""),
                     }
-    except Exception as e:
-        print(f"Error wiki: {e}")
-
+        except:
+            pass
+    
+    # Buscar con search API
+    if not wiki_data:
+        try:
+            params = {
+                "action": "query",
+                "list": "search",
+                "srsearch": city,
+                "format": "json",
+                "srlimit": 1
+            }
+            r = requests.get("https://es.wikipedia.org/w/api.php", params=params, timeout=8)
+            if r.status_code == 200:
+                results = r.json().get("query", {}).get("search", [])
+                if results:
+                    title = results[0]["title"]
+                    url = f"https://es.wikipedia.org/api/rest_v1/page/summary/{title.replace(' ', '_')}"
+                    r = requests.get(url, timeout=8)
+                    if r.status_code == 200:
+                        d = r.json()
+                        wiki_data = {
+                            "title": d.get("title", city),
+                            "summary": d.get("extract", "")[:600],
+                            "image_url": (d.get("thumbnail") or {}).get("source", ""),
+                            "wiki_url": d.get("content_urls", {}).get("desktop", {}).get("page", ""),
+                        }
+        except:
+            pass
+    
+    # Fallback final
     if not wiki_data:
         wiki_data = {
             "title": city,
-            "summary": f"{city} es un destino fascinante con rica historia y cultura para explorar.",
+            "summary": f"{city} es una ciudad fascinante con rica historia y cultura. Visita el enlace para más información.",
             "image_url": "",
-            "wiki_url": f"https://es.wikipedia.org/wiki/{city.replace(' ', '_')}",
+            "wiki_url": f"https://es.wikipedia.org/wiki/{wiki_city}",
         }
 
     # ========== 8. HORA ACTUAL ==========
     time_data = {}
     if lat and lon:
         try:
-            r = requests.get(f"http://api.geonames.org/timezoneJSON", params={"lat": lat, "lng": lon, "username": "demo"}, timeout=8)
-            if r.status_code == 200:
-                geo_data = r.json()
-                tz_str = geo_data.get("timezoneId", "UTC")
-                try:
-                    tz = pytz.timezone(tz_str)
-                    now = datetime.now(tz)
-                    time_data = {
-                        "datetime": now.strftime("%Y-%m-%d %H:%M:%S"),
-                        "timezone": tz_str,
-                        "date": now.strftime("%A, %d de %B de %Y"),
-                        "time": now.strftime("%H:%M:%S"),
-                        "is_daytime": 6 <= now.hour < 18
-                    }
-                except:
-                    now = datetime.utcnow()
-                    time_data = {
-                        "datetime": now.strftime("%Y-%m-%d %H:%M:%S"),
-                        "timezone": "UTC",
-                        "date": now.strftime("%A, %d de %B de %Y"),
-                        "time": now.strftime("%H:%M:%S"),
-                        "is_daytime": 6 <= now.hour < 18
-                    }
+            from timezonefinder import TimezoneFinder
+            tf = TimezoneFinder()
+            tz_str = tf.timezone_at(lat=lat, lng=lon)
+            
+            if not tz_str:
+                geo_r = requests.get(
+                    f"http://api.geonames.org/timezoneJSON",
+                    params={"lat": lat, "lng": lon, "username": "demo"},
+                    timeout=8
+                )
+                if geo_r.status_code == 200:
+                    tz_str = geo_r.json().get("timezoneId", "UTC")
+                else:
+                    tz_str = "UTC"
+            
+            try:
+                tz = pytz.timezone(tz_str)
+                now = datetime.now(tz)
+                time_data = {
+                    "datetime": now.strftime("%Y-%m-%d %H:%M:%S"),
+                    "timezone": tz_str,
+                    "date": now.strftime("%A, %d de %B de %Y"),
+                    "time": now.strftime("%H:%M:%S"),
+                    "is_daytime": 6 <= now.hour < 18
+                }
+            except:
+                now = datetime.now(pytz.UTC)
+                time_data = {
+                    "datetime": now.strftime("%Y-%m-%d %H:%M:%S"),
+                    "timezone": "UTC",
+                    "date": now.strftime("%A, %d de %B de %Y"),
+                    "time": now.strftime("%H:%M:%S"),
+                    "is_daytime": 6 <= now.hour < 18
+                }
         except Exception as e:
-            now = datetime.utcnow()
+            print(f"Error time: {e}")
+            now = datetime.now(pytz.UTC)
             time_data = {
                 "datetime": now.strftime("%Y-%m-%d %H:%M:%S"),
                 "timezone": "UTC",
