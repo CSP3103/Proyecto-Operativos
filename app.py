@@ -502,64 +502,214 @@ def explore():
     if not city:
         return jsonify({"error": "Falta el parámetro: city"}), 400
 
-    # Geocoding
+    # ========== 1. GEOCODING ==========
     lat, lon, country_code, timezone = geocode_city(city)
 
-    # Datos del país
-    target_currency = "USD"
+    # ========== 2. CLIMA ==========
+    weather_data = {}
+    if OPENWEATHER_API_KEY:
+        try:
+            r = requests.get(
+                "https://api.openweathermap.org/data/2.5/weather",
+                params={"q": f"{city},{country_code}" if country_code else city,
+                        "appid": OPENWEATHER_API_KEY, "units": "metric", "lang": "es"},
+                timeout=10
+            )
+            if r.status_code == 200:
+                d = r.json()
+                weather_data = {
+                    "city": d.get("name", city),
+                    "country": d.get("sys", {}).get("country", ""),
+                    "temperature": d.get("main", {}).get("temp"),
+                    "feels_like": d.get("main", {}).get("feels_like"),
+                    "humidity": d.get("main", {}).get("humidity"),
+                    "wind_speed": d.get("wind", {}).get("speed"),
+                    "description": d.get("weather", [{}])[0].get("description", ""),
+                    "icon_url": f"https://openweathermap.org/img/wn/{d.get('weather', [{}])[0].get('icon', '')}@2x.png",
+                }
+        except Exception as e:
+            weather_data = {"error": str(e)}
+
+    # ========== 3. PAÍS ==========
     country_info = {}
     if country_code:
         try:
-            c_res = requests.get(
-                f"{request.host_url}country", params={"code": country_code}, timeout=8
-            ).json()
-            if "error" not in c_res and c_res.get("official_name"):
-                country_info = c_res
-                target_currency = country_info.get("currency", {}).get("code", "USD")
-        except Exception:
-            pass
-
-    # Construir URLs BASE de forma correcta
-    if request.host_url.startswith('http://localhost'):
-        base = request.host_url.rstrip('/')
-    else:
-        # Para producción en Render
-        base = 'https://travelscope-pro.onrender.com'
-
-    # Llamadas a las APIs
-    def fetch_api(name, url, params):
-        try:
-            r = requests.get(url, params=params, timeout=15)
-            r.raise_for_status()
-            return name, r.json()
+            r = requests.get(f"https://restcountries.com/v3.1/alpha/{country_code}", timeout=10)
+            if r.status_code == 200:
+                d = r.json()[0]
+                currencies = d.get("currencies", {})
+                currency_info = {}
+                for k, v in currencies.items():
+                    currency_info = {"code": k, "name": v.get("name", ""), "symbol": v.get("symbol", "")}
+                    break
+                languages = d.get("languages", {})
+                language = list(languages.values())[0] if languages else ""
+                country_info = {
+                    "name": d.get("name", {}).get("common", ""),
+                    "official_name": d.get("name", {}).get("official", ""),
+                    "capital": d.get("capital", [""])[0],
+                    "currency": currency_info,
+                    "language": language,
+                    "region": d.get("region", ""),
+                    "subregion": d.get("subregion", ""),
+                    "timezone": d.get("timezones", [""])[0],
+                    "flag_url": d.get("flags", {}).get("png", ""),
+                    "population": d.get("population", 0),
+                }
         except Exception as e:
-            return name, {"error": str(e), "status": "failed"}
+            country_info = {"error": str(e)}
 
-    calls = {
-        "weather": (f"{base}/weather", {"city": city, "country": country_code}),
-        "photos": (f"{base}/photos", {"city": city, "count": 5}),
-        "currency": (f"{base}/currency", {"from": currency_from, "to": target_currency, "amount": amount}),
-        "places": (f"{base}/places", {"city": city, "country": country_code, "lat": lat or "", "lon": lon or "", "limit": 8}),
-        "wiki": (f"{base}/wiki", {"city": city, "country": country_info.get("name", "")}),
-        "time": (f"{base}/current-time", {"city": city, "country": country_code}),
-    }
+    # ========== 4. FOTOS ==========
+    photos_data = {"photos": []}
+    if UNSPLASH_ACCESS_KEY:
+        try:
+            r = requests.get(
+                "https://api.unsplash.com/search/photos",
+                headers={"Authorization": f"Client-ID {UNSPLASH_ACCESS_KEY}"},
+                params={"query": city, "per_page": 5, "orientation": "landscape"},
+                timeout=10
+            )
+            if r.status_code == 200:
+                d = r.json()
+                photos_data = {
+                    "city": city,
+                    "total_found": d.get("total", 0),
+                    "photos": [{
+                        "url": p.get("urls", {}).get("regular"),
+                        "thumb_url": p.get("urls", {}).get("thumb"),
+                        "description": p.get("description") or p.get("alt_description") or city,
+                        "photographer": p.get("user", {}).get("name"),
+                        "photographer_url": p.get("user", {}).get("links", {}).get("html"),
+                    } for p in d.get("results", [])]
+                }
+        except Exception as e:
+            photos_data = {"error": str(e)}
 
-    results = {"country": country_info}
-    with ThreadPoolExecutor(max_workers=6) as executor:
-        futures = {executor.submit(fetch_api, name, url, params): name for name, (url, params) in calls.items()}
-        for future in as_completed(futures):
-            name, data = future.result()
-            results[name] = data
+    # ========== 5. MONEDA ==========
+    target_currency = country_info.get("currency", {}).get("code", "USD")
+    currency_data = {}
+    try:
+        r = requests.get(f"https://open.er-api.com/v6/latest/{currency_from}", timeout=10)
+        if r.status_code == 200:
+            d = r.json()
+            if target_currency in d.get("rates", {}):
+                rate = d["rates"][target_currency]
+                currency_data = {
+                    "from": currency_from,
+                    "to": target_currency,
+                    "amount": amount,
+                    "converted": round(amount * rate, 4),
+                    "rate": rate,
+                    "date": d.get("time_last_update_utc", "")[:16],
+                }
+    except Exception as e:
+        currency_data = {"error": str(e)}
 
+    # ========== 6. LUGARES ==========
+    places_list = []
+    if lat and lon:
+        try:
+            filters = "\n".join([
+                f'  node["{k}"="{v}"]["name"](around:15000,{lat},{lon});\n'
+                f'  way["{k}"="{v}"]["name"](around:15000,{lat},{lon});'
+                for k, v in OVERPASS_TAGS[:5]
+            ])
+            overpass_query = f"""[out:json][timeout:25];
+(
+{filters}
+);
+out center tags 20;"""
+            op = requests.post("https://overpass-api.de/api/interpreter", data={"data": overpass_query}, timeout=25)
+            if op.status_code == 200:
+                elements = op.json().get("elements", [])
+                seen = set()
+                for el in elements[:8]:
+                    tags = el.get("tags", {})
+                    name = (tags.get("name:es") or tags.get("name") or "").strip()
+                    if not name or name in seen:
+                        continue
+                    seen.add(name)
+                    if el.get("type") == "node":
+                        p_lat, p_lon = el.get("lat"), el.get("lon")
+                    else:
+                        c = el.get("center", {})
+                        p_lat, p_lon = c.get("lat"), c.get("lon")
+                    if not p_lat:
+                        continue
+                    place_type = "default"
+                    for k, v in OVERPASS_TAGS:
+                        if tags.get(k) == v:
+                            place_type = v
+                            break
+                    places_list.append({
+                        "name": name,
+                        "type": place_type,
+                        "icon": TYPE_META.get(place_type, TYPE_META["default"])[0],
+                        "label": TYPE_META.get(place_type, TYPE_META["default"])[1],
+                        "address": tags.get("addr:street", "") or "",
+                        "website": tags.get("website", ""),
+                        "wikipedia": "",
+                        "lat": p_lat,
+                        "lon": p_lon,
+                    })
+        except Exception as e:
+            print(f"Error places: {e}")
+
+    # ========== 7. WIKIPEDIA ==========
+    wiki_data = {}
+    try:
+        r = requests.get(f"https://es.wikipedia.org/api/rest_v1/page/summary/{city}", timeout=10)
+        if r.status_code == 200:
+            d = r.json()
+            wiki_data = {
+                "title": d.get("title", city),
+                "summary": d.get("extract", "")[:500],
+                "image_url": (d.get("thumbnail") or {}).get("source", ""),
+                "wiki_url": d.get("content_urls", {}).get("desktop", {}).get("page", ""),
+            }
+        else:
+            # Fallback a inglés
+            r = requests.get(f"https://en.wikipedia.org/api/rest_v1/page/summary/{city}", timeout=10)
+            if r.status_code == 200:
+                d = r.json()
+                wiki_data = {
+                    "title": d.get("title", city),
+                    "summary": d.get("extract", "")[:500],
+                    "image_url": (d.get("thumbnail") or {}).get("source", ""),
+                    "wiki_url": d.get("content_urls", {}).get("desktop", {}).get("page", ""),
+                }
+    except Exception as e:
+        wiki_data = {"error": str(e)}
+
+    # ========== 8. HORA ACTUAL ==========
+    time_data = {}
+    if lat and lon:
+        try:
+            from timezonefinder import TimezoneFinder
+            tf = TimezoneFinder()
+            tz_str = tf.timezone_at(lat=lat, lng=lon) or "UTC"
+            tz = pytz.timezone(tz_str)
+            now = datetime.now(tz)
+            time_data = {
+                "datetime": now.strftime("%Y-%m-%d %H:%M:%S"),
+                "timezone": tz_str,
+                "date": now.strftime("%A, %d de %B de %Y"),
+                "time": now.strftime("%H:%M:%S"),
+                "is_daytime": 6 <= now.hour < 18
+            }
+        except Exception as e:
+            time_data = {"error": str(e)}
+
+    # ========== RESPUESTA FINAL ==========
     return jsonify({
         "query": {"city": city, "country": country_code, "currency_from": currency_from, "amount": amount},
-        "weather": results.get("weather", {}),
-        "country": results.get("country", {}),
-        "photos": results.get("photos", {}),
-        "currency": results.get("currency", {}),
-        "wiki": results.get("wiki", {}),
-        "places": {"places": results.get("places", {}).get("places", []), "lat": lat, "lon": lon},
-        "time": results.get("time", {}),
+        "weather": weather_data,
+        "country": country_info,
+        "photos": photos_data,
+        "currency": currency_data,
+        "wiki": wiki_data,
+        "places": {"places": places_list, "lat": lat, "lon": lon},
+        "time": time_data,
     })
     
 @app.route("/convert")
