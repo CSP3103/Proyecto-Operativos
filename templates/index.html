@@ -356,38 +356,41 @@ let clockInterval = null;
 function updateClockFromOffset(timeData) {
   if (!timeData || !timeData.datetime) return;
 
-  // Extraer la hora LOCAL que ya viene del backend
-  const localTimeStr = timeData.time;  // "10:29:54" (hora local de Oslo)
-  const localDateStr = timeData.date;   // "miércoles, 03 de junio de 2026"
-  const timezoneStr = timeData.timezone; // "Europe/Oslo"
-  
-  // Formatear zona horaria para mostrar (Europe/Oslo → Oslo)
+  const localDateStr = timeData.date;
+  const timezoneStr = timeData.timezone;
+
   let zonaMostrar = timezoneStr || 'UTC';
   if (zonaMostrar.includes('/')) {
-      zonaMostrar = zonaMostrar.split('/')[1].replace('_', ' ');
+    zonaMostrar = zonaMostrar.split('/')[1].replace('_', ' ');
   }
-  
-  // Para el reloj en tiempo real, necesitamos la hora base
-  const baseDateTime = new Date(timeData.datetime.replace(' ', 'T'));
-  if (isNaN(baseDateTime.getTime())) return;
-  
-  function update() {
-    // Calcular segundos transcurridos desde la hora base
-    const elapsedSeconds = (Date.now() - baseDateTime.getTime()) / 1000;
-    const currentTime = new Date(baseDateTime.getTime() + (elapsedSeconds * 1000));
-    
-    // Formatear hora local
-    const horas = String(currentTime.getHours()).padStart(2, '0');
-    const minutos = String(currentTime.getMinutes()).padStart(2, '0');
-    const segundos = String(currentTime.getSeconds()).padStart(2, '0');
-    
-    document.getElementById('currentTime').textContent = `${horas}:${minutos}:${segundos}`;
-    document.getElementById('currentDate').textContent = localDateStr;
-    document.getElementById('timezoneBadge').innerHTML = `🕐 ${zonaMostrar}`;
-  }
-  
-  update();
+
+  // Hora local que ya viene correcta del backend
+  const [datePart, timePart] = timeData.datetime.split(' ');
+  const [year, month, day] = datePart.split('-').map(Number);
+  const [hour, minute, second] = timePart.split(':').map(Number);
+
+  // Momento en que llegó la respuesta del servidor (en ms del navegador)
+  const arrivedAt = Date.now();
+  // Hora base del destino en milisegundos (como si fuera Date, solo para aritmética)
+  const baseMs = new Date(year, month - 1, day, hour, minute, second).getTime();
+
   if (clockInterval) clearInterval(clockInterval);
+
+  function update() {
+    const elapsed = Date.now() - arrivedAt;
+    const currentMs = baseMs + elapsed;
+    const d = new Date(currentMs);
+
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    const ss = String(d.getSeconds()).padStart(2, '0');
+
+    document.getElementById('currentTime').textContent = `${hh}:${mm}:${ss}`;
+    document.getElementById('currentDate').textContent = localDateStr;
+    document.getElementById('timezoneBadge').innerHTML = `<i class="ti ti-clock"></i> ${zonaMostrar}`;
+  }
+
+  update();
   clockInterval = setInterval(update, 1000);
 }
 function render(data) {
