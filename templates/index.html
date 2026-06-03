@@ -559,21 +559,23 @@ function iniciarActualizacionTasa() {
     }, 30000);
 }
 
-  // ========== HORA ACTUAL - DIAGNÓSTICO ==========
-  const tm = data.time || {};
+  // ========== HORA ACTUAL (VERSIÓN SEGURA) ==========
+  const timeData = data?.time || {};
   
-  // 🔥 ESTO ES NUEVO - PARA VER SI LLEGAN LOS DATOS
-  console.log("🔍 DATOS DE HORA RECIBIDOS:", tm);
+  const currentTimeEl = document.getElementById('currentTime');
+  const currentDateEl = document.getElementById('currentDate');
+  const timezoneBadgeEl = document.getElementById('timezoneBadge');
   
-  // Mostrar la hora de forma SIMPLE (sin reloj en tiempo real)
-  if (tm.time) {
-      document.getElementById('currentTime').innerHTML = tm.time;
-      document.getElementById('currentDate').innerHTML = tm.date || 'Fecha no disponible';
-      document.getElementById('timezoneBadge').innerHTML = `🕐 ${tm.timezone || 'UTC'}`;
-  } else {
-      document.getElementById('currentTime').innerHTML = '--:--:--';
-      document.getElementById('currentDate').innerHTML = 'No disponible';
-      document.getElementById('timezoneBadge').innerHTML = 'Zona horaria no disponible';
+  if (currentTimeEl) {
+      if (timeData.time) {
+          currentTimeEl.textContent = timeData.time;
+          if (currentDateEl) currentDateEl.textContent = timeData.date || '';
+          if (timezoneBadgeEl) timezoneBadgeEl.innerHTML = `🕐 ${timeData.timezone || 'UTC'}`;
+      } else {
+          currentTimeEl.textContent = '--:--:--';
+          if (currentDateEl) currentDateEl.textContent = 'No disponible';
+          if (timezoneBadgeEl) timezoneBadgeEl.innerHTML = 'UTC';
+      }
   }
 </script>
 </body>
