@@ -356,40 +356,34 @@ let clockInterval = null;
 function updateClockFromOffset(timeData) {
   if (!timeData || !timeData.datetime) return;
 
-  // Crear fecha base desde el datetime UTC
-  let baseDate;
-  if (timeData.datetime.includes(' ')) {
-    baseDate = new Date(timeData.datetime.replace(' ', 'T') + 'Z');
-  } else {
-    baseDate = new Date(timeData.datetime + 'Z');
+  // Extraer la hora LOCAL que ya viene del backend
+  const localTimeStr = timeData.time;  // "10:29:54" (hora local de Oslo)
+  const localDateStr = timeData.date;   // "miércoles, 03 de junio de 2026"
+  const timezoneStr = timeData.timezone; // "Europe/Oslo"
+  
+  // Formatear zona horaria para mostrar (Europe/Oslo → Oslo)
+  let zonaMostrar = timezoneStr || 'UTC';
+  if (zonaMostrar.includes('/')) {
+      zonaMostrar = zonaMostrar.split('/')[1].replace('_', ' ');
   }
   
-  if (isNaN(baseDate.getTime())) return;
-
+  // Para el reloj en tiempo real, necesitamos la hora base
+  const baseDateTime = new Date(timeData.datetime.replace(' ', 'T'));
+  if (isNaN(baseDateTime.getTime())) return;
+  
   function update() {
-    const elapsed = (Date.now() - baseDate.getTime()) / 1000;
-    const currentUTC = new Date(baseDate.getTime() + (elapsed * 1000));
+    // Calcular segundos transcurridos desde la hora base
+    const elapsedSeconds = (Date.now() - baseDateTime.getTime()) / 1000;
+    const currentTime = new Date(baseDateTime.getTime() + (elapsedSeconds * 1000));
     
-    // Formatear sin depender de utc_offset
-    const horas = String(currentUTC.getUTCHours()).padStart(2, '0');
-    const minutos = String(currentUTC.getUTCMinutes()).padStart(2, '0');
-    const segundos = String(currentUTC.getUTCSeconds()).padStart(2, '0');
-    
-    const opcionesFecha = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-    const fecha = new Date(currentUTC);
+    // Formatear hora local
+    const horas = String(currentTime.getHours()).padStart(2, '0');
+    const minutos = String(currentTime.getMinutes()).padStart(2, '0');
+    const segundos = String(currentTime.getSeconds()).padStart(2, '0');
     
     document.getElementById('currentTime').textContent = `${horas}:${minutos}:${segundos}`;
-    document.getElementById('currentDate').textContent = fecha.toLocaleDateString('es-ES', opcionesFecha);
-    
-    // 🔥 ESTA ES LA LÍNEA PROBLEMA - ARREGLADA:
-    let zonaMostrar = timeData.timezone || 'UTC';
-    if (zonaMostrar.includes('/')) {
-        zonaMostrar = zonaMostrar.split('/')[1].replace('_', ' ');
-    }
+    document.getElementById('currentDate').textContent = localDateStr;
     document.getElementById('timezoneBadge').innerHTML = `🕐 ${zonaMostrar}`;
-    
-    // También puedes imprimir en consola para verificar
-    console.log("Zona horaria:", timeData.timezone, "→ Mostrando:", zonaMostrar);
   }
   
   update();
