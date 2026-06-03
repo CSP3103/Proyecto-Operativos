@@ -14,6 +14,12 @@ load_dotenv()
 app = Flask(__name__)
 CORS(app)
 
+import socket
+def get_base_url():
+    if os.getenv('RENDER'):
+        return f"https://{os.getenv('RENDER_EXTERNAL_HOSTNAME')}"
+    return request.host_url.rstrip('/')
+
 # ============ CONFIGURACIÓN ============
 OPENWEATHER_API_KEY = os.getenv("OPENWEATHER_API_KEY")
 UNSPLASH_ACCESS_KEY = os.getenv("UNSPLASH_ACCESS_KEY")
@@ -513,7 +519,7 @@ def explore():
         except Exception:
             pass
 
-    base = request.host_url.rstrip("/")
+    base = get_base_url()
 
     calls = {
         "weather":  (f"{base}/weather",        {"city": city, "country": country_code}),
