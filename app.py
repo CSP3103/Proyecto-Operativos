@@ -830,63 +830,41 @@ def explore():
             "wiki_url": f"https://es.wikipedia.org/wiki/{wiki_city}",
         }
 
-       # ========== 8. HORA ACTUAL (VERSIÓN SIMPLE QUE SÍ FUNCIONA) ==========
+          # ========== 8. HORA ACTUAL (CON ZONA HORARIA REAL) ==========
     time_data = {}
     if lat and lon:
         try:
-            # API de geonames que SÍ funciona
-            geo_r = requests.get(
-                f"http://api.geonames.org/timezoneJSON",
-                params={"lat": lat, "lng": lon, "username": "demo"},
-                timeout=8
-            )
-            if geo_r.status_code == 200:
-                geo_data = geo_r.json()
-                tz_str = geo_data.get("timezoneId", "UTC")
-                
-                # Calcular hora local
-                from datetime import timedelta
-                import calendar
-                
-                # Usar el offset de geonames
-                raw_offset = geo_data.get("rawOffset", 0)
-                now_utc = datetime.utcnow()
-                now_local = now_utc + timedelta(hours=raw_offset)
-                
-                time_data = {
-                    "datetime": now_local.strftime("%Y-%m-%d %H:%M:%S"),
-                    "timezone": tz_str,
-                    "date": now_local.strftime("%A, %d de %B de %Y"),
-                    "time": now_local.strftime("%H:%M:%S"),
-                    "is_daytime": 6 <= now_local.hour < 18
-                }
-            else:
-                # Fallback con pytz
-                try:
-                    from timezonefinder import TimezoneFinder
-                    tf = TimezoneFinder()
-                    tz_str = tf.timezone_at(lat=lat, lng=lon) or "UTC"
-                    tz = pytz.timezone(tz_str)
-                    now = datetime.now(tz)
-                    time_data = {
-                        "datetime": now.strftime("%Y-%m-%d %H:%M:%S"),
-                        "timezone": tz_str,
-                        "date": now.strftime("%A, %d de %B de %Y"),
-                        "time": now.strftime("%H:%M:%S"),
-                        "is_daytime": 6 <= now.hour < 18
-                    }
-                except:
-                    now = datetime.now()
-                    time_data = {
-                        "datetime": now.strftime("%Y-%m-%d %H:%M:%S"),
-                        "timezone": "UTC",
-                        "date": now.strftime("%A, %d de %B de %Y"),
-                        "time": now.strftime("%H:%M:%S"),
-                        "is_daytime": 6 <= now.hour < 18
-                    }
+            # Usar timezonefinder para obtener la zona horaria real
+            from timezonefinder import TimezoneFinder
+            tf = TimezoneFinder()
+            tz_str = tf.timezone_at(lat=lat, lng=lon)
+            
+            if not tz_str:
+                # Fallback a geonames
+                geo_r = requests.get(
+                    f"http://api.geonames.org/timezoneJSON",
+                    params={"lat": lat, "lng": lon, "username": "demo"},
+                    timeout=8
+                )
+                if geo_r.status_code == 200:
+                    tz_str = geo_r.json().get("timezoneId", "UTC")
+                else:
+                    tz_str = "UTC"
+            
+            # Calcular hora local
+            tz = pytz.timezone(tz_str)
+            now = datetime.now(tz)
+            
+            time_data = {
+                "datetime": now.strftime("%Y-%m-%d %H:%M:%S"),
+                "timezone": tz_str,  # ← Esto debe venir de la ciudad, no "UTC"
+                "date": now.strftime("%A, %d de %B de %Y"),
+                "time": now.strftime("%H:%M:%S"),
+                "is_daytime": 6 <= now.hour < 18
+            }
         except Exception as e:
             print(f"Error time: {e}")
-            now = datetime.now()
+            now = datetime.utcnow()
             time_data = {
                 "datetime": now.strftime("%Y-%m-%d %H:%M:%S"),
                 "timezone": "UTC",
