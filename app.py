@@ -609,136 +609,144 @@ def explore():
     places_list = []
     if lat and lon:
         try:
+            # Query específica para lugares turísticos reales
             query = f"""
-            [out:json][timeout:20];
+            [out:json][timeout:25];
             (
-              node["tourism"](around:15000,{lat},{lon});
-              node["historic"](around:15000,{lat},{lon});
-              node["leisure"="park"](around:15000,{lat},{lon});
-              way["tourism"](around:15000,{lat},{lon});
-              way["historic"](around:15000,{lat},{lon});
-              relation["tourism"](around:15000,{lat},{lon});
+              node["tourism"="attraction"](around:10000,{lat},{lon});
+              node["historic"="monument"](around:10000,{lat},{lon});
+              node["tourism"="museum"](around:10000,{lat},{lon});
+              node["historic"="castle"](around:10000,{lat},{lon});
+              node["tourism"="viewpoint"](around:10000,{lat},{lon});
+              way["tourism"="attraction"](around:10000,{lat},{lon});
+              way["historic"="monument"](around:10000,{lat},{lon});
+              way["tourism"="museum"](around:10000,{lat},{lon});
             );
-            out center limit 15;
+            out center;
             """
-            op = requests.post("https://overpass-api.de/api/interpreter", data={"data": query}, timeout=25)
+            op = requests.post("https://overpass-api.de/api/interpreter", data={"data": query}, timeout=30)
             if op.status_code == 200:
-                elements = op.json().get("elements", [])
-                seen = set()
+                data = op.json()
+                elements = data.get("elements", [])
+                
+                seen_names = set()
                 for el in elements:
                     tags = el.get("tags", {})
-                    name = tags.get("name:es") or tags.get("name", "").strip()
-                    if not name or len(name) < 3 or name in seen:
-                        continue
-                    seen.add(name)
+                    name = tags.get("name", "").strip()
                     
+                    # Filtrar nombres válidos
+                    if not name or len(name) < 4 or name in seen_names:
+                        continue
+                    if "address" in name.lower() or "street" in name.lower():
+                        continue
+                    
+                    seen_names.add(name)
+                    
+                    # Obtener coordenadas
                     if el.get("type") == "node":
-                        p_lat, p_lon = el.get("lat"), el.get("lon")
+                        place_lat = el.get("lat")
+                        place_lon = el.get("lon")
                     else:
                         center = el.get("center", {})
-                        p_lat, p_lon = center.get("lat"), center.get("lon")
+                        place_lat = center.get("lat")
+                        place_lon = center.get("lon")
                     
-                    if not p_lat:
+                    if not place_lat:
                         continue
                     
-                    place_type = "attraction"
+                    # Determinar tipo e ícono
                     icon = "📍"
-                    type_label = tags.get("tourism", tags.get("historic", "Lugar Turístico"))
+                    tipo = tags.get("tourism", tags.get("historic", "attraction"))
                     
                     if "museum" in str(tags).lower():
-                        icon = "🖼️"
-                        place_type = "museum"
-                    elif "park" in str(tags).lower():
-                        icon = "🌳"
-                        place_type = "park"
-                    elif "church" in str(tags).lower() or "cathedral" in str(tags).lower():
-                        icon = "⛪"
-                        place_type = "place_of_worship"
+                        icon = "🏛️"
                     elif "castle" in str(tags).lower() or "fort" in str(tags).lower():
                         icon = "🏰"
-                        place_type = "castle"
+                    elif "church" in str(tags).lower() or "cathedral" in str(tags).lower():
+                        icon = "⛪"
+                    elif "park" in str(tags).lower():
+                        icon = "🌳"
+                    elif "viewpoint" in str(tags).lower() or "mirador" in str(tags).lower():
+                        icon = "🔭"
                     elif "monument" in str(tags).lower():
                         icon = "🗿"
-                        place_type = "monument"
                     
                     places_list.append({
                         "name": name,
-                        "type": place_type,
+                        "type": tipo,
                         "icon": icon,
-                        "label": type_label.capitalize() if type_label else "Lugar Turístico",
+                        "label": tipo.capitalize(),
                         "address": tags.get("addr:street", ""),
                         "website": tags.get("website", ""),
-                        "wikipedia": "",
-                        "lat": p_lat,
-                        "lon": p_lon,
+                        "wikipedia": tags.get("wikipedia", ""),
+                        "lat": place_lat,
+                        "lon": place_lon,
                     })
                     
                     if len(places_list) >= 8:
                         break
         except Exception as e:
-            print(f"Error places: {e}")
+            print(f"Error en Overpass: {e}")
     
-    # Lugares por defecto si no encuentra nada
+    # Si no encontró nada, usar lugares famosos por ciudad
     if not places_list:
-        default_places = {
+        # Diccionario de lugares famosos por ciudad
+        lugares_famosos = {
             "oslo": [
-                {"name": "Ópera de Oslo", "icon": "🎭", "label": "Teatro"},
-                {"name": "Parque Vigeland", "icon": "🗿", "label": "Parque"},
-                {"name": "Museo del Barco Vikingo", "icon": "🚢", "label": "Museo"},
-                {"name": "Fortaleza de Akershus", "icon": "🏰", "label": "Castillo"},
-                {"name": "Palacio Real", "icon": "👑", "label": "Palacio"},
+                "Vigeland Park", "Oslo Opera House", "Viking Ship Museum", 
+                "Akershus Fortress", "Royal Palace", "Munch Museum"
             ],
             "paris": [
-                {"name": "Torre Eiffel", "icon": "🗼", "label": "Monumento"},
-                {"name": "Museo del Louvre", "icon": "🖼️", "label": "Museo"},
-                {"name": "Catedral de Notre Dame", "icon": "⛪", "label": "Catedral"},
-                {"name": "Arco del Triunfo", "icon": "🏛️", "label": "Monumento"},
-                {"name": "Montmartre", "icon": "🎨", "label": "Barrio"},
+                "Eiffel Tower", "Louvre Museum", "Notre-Dame Cathedral",
+                "Arc de Triomphe", "Sacré-Cœur", "Orsay Museum"
             ],
             "london": [
-                {"name": "Big Ben", "icon": "🕰️", "label": "Monumento"},
-                {"name": "London Eye", "icon": "🎡", "label": "Mirador"},
-                {"name": "Museo Británico", "icon": "🏛️", "label": "Museo"},
-                {"name": "Torre de Londres", "icon": "🏰", "label": "Castillo"},
-                {"name": "Buckingham Palace", "icon": "👑", "label": "Palacio"},
-            ],
-            "madrid": [
-                {"name": "Palacio Real", "icon": "👑", "label": "Palacio"},
-                {"name": "Museo del Prado", "icon": "🖼️", "label": "Museo"},
-                {"name": "Parque del Retiro", "icon": "🌳", "label": "Parque"},
-                {"name": "Plaza Mayor", "icon": "🏛️", "label": "Plaza"},
-                {"name": "Puerta del Sol", "icon": "📍", "label": "Plaza"},
+                "Big Ben", "British Museum", "London Eye",
+                "Tower of London", "Buckingham Palace", "Hyde Park"
             ],
             "barcelona": [
-                {"name": "Sagrada Familia", "icon": "⛪", "label": "Basílica"},
-                {"name": "Park Güell", "icon": "🌳", "label": "Parque"},
-                {"name": "Casa Batlló", "icon": "🏠", "label": "Arquitectura"},
-                {"name": "Ramblas", "icon": "🚶", "label": "Paseo"},
+                "Sagrada Familia", "Park Güell", "Casa Batlló",
+                "Las Ramblas", "Camp Nou", "Barcelona Cathedral"
+            ],
+            "madrid": [
+                "Royal Palace", "Prado Museum", "Retiro Park",
+                "Plaza Mayor", "Santiago Bernabéu", "Reina Sofia Museum"
+            ],
+            "rome": [
+                "Colosseum", "Vatican Museums", "Trevi Fountain",
+                "Roman Forum", "Pantheon", "St. Peter's Basilica"
+            ],
+            "tokyo": [
+                "Senso-ji Temple", "Shibuya Crossing", "Tokyo Tower",
+                "Meiji Shrine", "Ueno Park", "Tokyo DisneySea"
+            ],
+            "new york": [
+                "Statue of Liberty", "Central Park", "Times Square",
+                "Empire State Building", "Metropolitan Museum", "Brooklyn Bridge"
             ],
         }
         
         city_lower = city.lower()
-        default_list = []
-        for key, places in default_places.items():
-            if key in city_lower:
-                default_list = places
+        encontrados = []
+        
+        for ciudad, lugares in lugares_famosos.items():
+            if ciudad in city_lower:
+                encontrados = lugares
                 break
         
-        if not default_list:
-            default_list = [
-                {"name": "Plaza Principal", "icon": "🏛️", "label": "Plaza"},
-                {"name": "Catedral", "icon": "⛪", "label": "Catedral"},
-                {"name": "Museo de la Ciudad", "icon": "🖼️", "label": "Museo"},
-                {"name": "Parque Central", "icon": "🌳", "label": "Parque"},
-                {"name": "Mirador", "icon": "🔭", "label": "Mirador"},
+        if not encontrados:
+            encontrados = [
+                "Plaza Mayor", "Catedral", "Museo Municipal", 
+                "Parque Central", "Mirador", "Teatro Principal"
             ]
         
-        for place in default_list[:8]:
+        icons = ["📍", "🏛️", "⛪", "🌳", "🔭", "🎭", "🏰", "🖼️"]
+        for i, lugar in enumerate(encontrados[:8]):
             places_list.append({
-                "name": place["name"],
+                "name": lugar,
                 "type": "attraction",
-                "icon": place["icon"],
-                "label": place["label"],
+                "icon": icons[i % len(icons)],
+                "label": "Lugar Turístico",
                 "address": "",
                 "website": "",
                 "wikipedia": "",
@@ -822,47 +830,63 @@ def explore():
             "wiki_url": f"https://es.wikipedia.org/wiki/{wiki_city}",
         }
 
-    # ========== 8. HORA ACTUAL ==========
+       # ========== 8. HORA ACTUAL (VERSIÓN SIMPLE QUE SÍ FUNCIONA) ==========
     time_data = {}
     if lat and lon:
         try:
-            from timezonefinder import TimezoneFinder
-            tf = TimezoneFinder()
-            tz_str = tf.timezone_at(lat=lat, lng=lon)
-            
-            if not tz_str:
-                geo_r = requests.get(
-                    f"http://api.geonames.org/timezoneJSON",
-                    params={"lat": lat, "lng": lon, "username": "demo"},
-                    timeout=8
-                )
-                if geo_r.status_code == 200:
-                    tz_str = geo_r.json().get("timezoneId", "UTC")
-                else:
-                    tz_str = "UTC"
-            
-            try:
-                tz = pytz.timezone(tz_str)
-                now = datetime.now(tz)
+            # API de geonames que SÍ funciona
+            geo_r = requests.get(
+                f"http://api.geonames.org/timezoneJSON",
+                params={"lat": lat, "lng": lon, "username": "demo"},
+                timeout=8
+            )
+            if geo_r.status_code == 200:
+                geo_data = geo_r.json()
+                tz_str = geo_data.get("timezoneId", "UTC")
+                
+                # Calcular hora local
+                from datetime import timedelta
+                import calendar
+                
+                # Usar el offset de geonames
+                raw_offset = geo_data.get("rawOffset", 0)
+                now_utc = datetime.utcnow()
+                now_local = now_utc + timedelta(hours=raw_offset)
+                
                 time_data = {
-                    "datetime": now.strftime("%Y-%m-%d %H:%M:%S"),
+                    "datetime": now_local.strftime("%Y-%m-%d %H:%M:%S"),
                     "timezone": tz_str,
-                    "date": now.strftime("%A, %d de %B de %Y"),
-                    "time": now.strftime("%H:%M:%S"),
-                    "is_daytime": 6 <= now.hour < 18
+                    "date": now_local.strftime("%A, %d de %B de %Y"),
+                    "time": now_local.strftime("%H:%M:%S"),
+                    "is_daytime": 6 <= now_local.hour < 18
                 }
-            except:
-                now = datetime.now(pytz.UTC)
-                time_data = {
-                    "datetime": now.strftime("%Y-%m-%d %H:%M:%S"),
-                    "timezone": "UTC",
-                    "date": now.strftime("%A, %d de %B de %Y"),
-                    "time": now.strftime("%H:%M:%S"),
-                    "is_daytime": 6 <= now.hour < 18
-                }
+            else:
+                # Fallback con pytz
+                try:
+                    from timezonefinder import TimezoneFinder
+                    tf = TimezoneFinder()
+                    tz_str = tf.timezone_at(lat=lat, lng=lon) or "UTC"
+                    tz = pytz.timezone(tz_str)
+                    now = datetime.now(tz)
+                    time_data = {
+                        "datetime": now.strftime("%Y-%m-%d %H:%M:%S"),
+                        "timezone": tz_str,
+                        "date": now.strftime("%A, %d de %B de %Y"),
+                        "time": now.strftime("%H:%M:%S"),
+                        "is_daytime": 6 <= now.hour < 18
+                    }
+                except:
+                    now = datetime.now()
+                    time_data = {
+                        "datetime": now.strftime("%Y-%m-%d %H:%M:%S"),
+                        "timezone": "UTC",
+                        "date": now.strftime("%A, %d de %B de %Y"),
+                        "time": now.strftime("%H:%M:%S"),
+                        "is_daytime": 6 <= now.hour < 18
+                    }
         except Exception as e:
             print(f"Error time: {e}")
-            now = datetime.now(pytz.UTC)
+            now = datetime.now()
             time_data = {
                 "datetime": now.strftime("%Y-%m-%d %H:%M:%S"),
                 "timezone": "UTC",
