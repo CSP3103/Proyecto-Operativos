@@ -18,7 +18,7 @@ CORS(app)
 OPENWEATHER_API_KEY = os.getenv("OPENWEATHER_API_KEY")
 UNSPLASH_ACCESS_KEY = os.getenv("UNSPLASH_ACCESS_KEY")
 GEOAPIFY_API_KEY = os.getenv("GEOAPIFY_API_KEY")
-PORT = int(os.getenv("PORT", 5000))
+PORT = int(os.getenv("PORT", 10000))
 
 # ============ TIPOS DE LUGARES (mejorado) ============
 TYPE_META = {
