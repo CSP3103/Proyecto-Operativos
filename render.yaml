@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: travelscope-pro
+    runtime: python
+    repo: https://github.com/TU_USUARIO/travelscope
+    plan: free
+    region: oregon
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app
+    envVars:
+      - key: OPENWEATHER_API_KEY
+        value: 06cb56f5d72af2b5fe7b0ecab7d84936
+      - key: UNSPLASH_ACCESS_KEY
+        value: NXCE3yrQ7d3a4OIst5WPDHY4jPrneKuNKRtVX0vowLU
+      - key: GEOAPIFY_API_KEY
+        value: aa1f4c71efc84abeaa99491f51258d8f
+      - key: PORT
+        value: 10000

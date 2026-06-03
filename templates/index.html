@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>TravelScope Pro - Descubre tu próximo destino</title>
+  <link href="https://fonts.googleapis.com/css2?family=Clash+Display:wght@500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{
+      --bg:#0d0f1a; --card:#161825; --border:rgba(255,255,255,0.08);
+      --coral:#ff6b6b; --teal:#4ecdc4; --sun:#ffd93d; --purple:#a29bfe; --text:#f0f0f8; --muted:#6c7080;
+    }
+    body{background:var(--bg); color:var(--text); font-family:'Plus Jakarta Sans',sans-serif; min-height:100vh; overflow-x:hidden}
+    .blob{position:fixed; border-radius:50%; filter:blur(100px); opacity:.18; pointer-events:none; z-index:0}
+    .blob1{width:600px; height:600px; background:var(--coral); top:-150px; left:-120px; animation:blobmove 12s ease-in-out infinite alternate}
+    .blob2{width:500px; height:500px; background:var(--teal); bottom:-80px; right:-100px; animation:blobmove 15s ease-in-out infinite alternate-reverse}
+    .blob3{width:300px; height:300px; background:var(--purple); top:40%; left:60%; animation:blobmove 18s ease-in-out infinite alternate}
+    @keyframes blobmove{0%{transform:scale(1) translate(0,0)}100%{transform:scale(1.15) translate(30px,20px)}}
+
+    header{position:relative; z-index:10; padding:1.5rem 2.5rem; border-bottom:1px solid var(--border)}
+    .logo{font-family:'Clash Display',sans-serif; font-size:1.6rem; font-weight:700; background:linear-gradient(135deg,var(--coral),var(--sun),var(--teal)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; letter-spacing:.02em}
+
+    .hero{position:relative; z-index:1; padding:3rem 2.5rem 1.5rem; text-align:center}
+    .hero h1{font-family:'Clash Display',sans-serif; font-size:3.2rem; margin-bottom:.5rem; background:linear-gradient(135deg,var(--coral),var(--sun),var(--teal),var(--purple)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-size:300% 300%; animation:gradshift 5s ease infinite}
+    @keyframes gradshift{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+    .hero p{color:var(--muted); margin-bottom:1.5rem}
+
+    .search-bar{display:flex; gap:.6rem; max-width:700px; margin:0 auto; background:var(--card); padding:.6rem; border-radius:20px; border:1px solid rgba(255,107,107,.3); box-shadow:0 0 30px rgba(255,107,107,.08); transition:box-shadow .3s}
+    .search-bar:focus-within{box-shadow:0 0 40px rgba(255,107,107,.2), 0 0 80px rgba(78,205,196,.1)}
+    @media(max-width:600px){.search-bar{flex-direction:column}}
+    .search-bar input, .search-bar select{background:rgba(255,255,255,.03); border:1px solid var(--border); border-radius:10px; padding:.75rem 1rem; color:var(--text); outline:none; flex:1}
+    .search-bar select{flex:0 0 190px}
+    .btn-explore{background:linear-gradient(135deg,var(--coral),#ff8e53); border:none; border-radius:12px; color:#fff; font-family:'Clash Display',sans-serif; padding:0 1.5rem; height:46px; cursor:pointer; font-weight:600; transition:transform .15s,box-shadow .15s; box-shadow:0 4px 15px rgba(255,107,107,.35)}
+    .btn-explore:hover{transform:translateY(-2px) scale(1.03); box-shadow:0 8px 25px rgba(255,107,107,.5)}
+    .btn-explore:active{transform:scale(.97)}
+
+    main{position:relative; z-index:1; max-width:1200px; margin:0 auto; padding:0 2rem 4rem}
+    .loading{display:none; text-align:center; padding:3rem 0; color:var(--muted)}
+    .loading.on{display:block}
+    .spinner{width:32px; height:32px; border:2px solid var(--border); border-top-color:var(--coral); border-radius:50%; animation:spin .7s linear infinite; margin:0 auto .8rem}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .err{display:none; text-align:center; padding:1rem; color:var(--coral); background:rgba(255,107,107,.05); border:1px solid rgba(255,107,107,.15); border-radius:12px; margin-top:1.5rem}
+    .err.on{display:block}
+
+    .results{display:none; margin-top:2rem}
+    .results.on{display:block}
+    .city-hdr{display:flex; align-items:center; gap:1rem; margin-bottom:1.5rem}
+    .city-flag{width:46px; border-radius:6px; box-shadow:0 4px 10px rgba(0,0,0,0.3)}
+    .city-title{font-family:'Clash Display',sans-serif; font-size:2.2rem; font-weight:700; background:linear-gradient(120deg,#fff,var(--teal)); -webkit-background-clip:text; -webkit-text-fill-color:transparent}
+    .city-sub{color:var(--muted); font-size:.9rem}
+
+    .photos{display:grid; grid-template-columns:repeat(5,1fr); gap:.4rem; margin-bottom:1.5rem; border-radius:16px; overflow:hidden}
+    @media(max-width:600px){.photos{grid-template-columns:repeat(2,1fr)}}
+    .photo{position:relative; aspect-ratio:3/2; overflow:hidden}
+    .photo img{width:100%; height:100%; object-fit:cover; transition:transform .4s ease}
+    .photo:hover img{transform:scale(1.07)}
+
+    /* GRID PRINCIPAL - 3 columnas */
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.2rem;
+      margin-bottom: 1.2rem;
+    }
+    
+    .card {
+      background: linear-gradient(145deg, #181a2a, #141622);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 1.2rem;
+      display: flex;
+      flex-direction: column;
+      transition: transform 0.2s, box-shadow 0.2s;
+      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+      height: 100%;
+      min-height: 200px;
+    }
+    
+    /* Cards que ocupan 2 columnas */
+    .card-span-2 {
+      grid-column: span 2;
+    }
+    
+    /* Card que ocupa toda la fila */
+    .card-full {
+      grid-column: 1 / -1;
+    }
+    
+    .card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+    }
+    
+    .card-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .card-lbl {
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: var(--muted);
+      margin-bottom: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    /* Responsive */
+    @media (max-width: 900px) {
+      .cards {
+        grid-template-columns: repeat(2, 1fr);
+      }
+      .card-span-2 {
+        grid-column: span 2;
+      }
+    }
+    
+    @media (max-width: 600px) {
+      .cards {
+        grid-template-columns: 1fr;
+      }
+      .card-span-2 {
+        grid-column: span 1;
+      }
+    }
+
+    /* Estilos específicos */
+    .w-row{display:flex; align-items:center; gap:.5rem; flex-wrap:wrap}
+    .w-temp{font-family:'Clash Display',sans-serif; font-size:2rem; color:var(--sun); text-shadow:0 0 20px rgba(255,217,61,.4)}
+
+    .inner-conv-box{background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:12px; padding:.8rem; margin-top:.3rem}
+    .inner-input-group{display:flex; background:rgba(0,0,0,0.25); border:1px solid rgba(255,255,255,.1); border-radius:10px; margin-bottom:.4rem; overflow:hidden; transition:border-color .2s}
+    .inner-input-group:focus-within{border-color:rgba(255,107,107,.5)}
+    .inner-input-group span{padding:.5rem .8rem; font-size:.8rem; color:var(--muted); background:rgba(255,255,255,0.02); display:flex; align-items:center; white-space:nowrap}
+    .inner-input-group input{width:100%; background:transparent; border:none; padding:.5rem; color:#fff; outline:none; font-size:.9rem}
+
+    .map-container{width:100%; height:180px; border-radius:12px; overflow:hidden; border:1px solid var(--border); margin-top:.5rem}
+    .map-container iframe{width:100%; height:100%; border:none}
+
+    .tip-item{display:flex; gap:.6rem; font-size:.82rem; margin-top:.7rem; line-height:1.5; background:rgba(162,155,254,.04); border-left:2px solid rgba(162,155,254,.4); border-radius:0 8px 8px 0; padding:.5rem .6rem}
+    .tip-icon{font-size:1.1rem}
+
+    .places-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:.75rem; margin-top:.5rem}
+    @media(max-width:800px){.places-grid{grid-template-columns:repeat(2,1fr)}}
+    @media(max-width:500px){.places-grid{grid-template-columns:1fr}}
+    
+    .place{background:linear-gradient(160deg,rgba(78,205,196,.07),rgba(255,255,255,.02)); border:1px solid rgba(78,205,196,.18); border-radius:16px; overflow:hidden; display:flex; flex-direction:column; transition:transform .2s,box-shadow .2s,border-color .2s; height:100%}
+    .place:hover{transform:translateY(-4px); border-color:rgba(78,205,196,.5); box-shadow:0 8px 28px rgba(78,205,196,.15)}
+    .place-thumb{width:100%; height:100px; object-fit:cover; display:block; background:rgba(255,255,255,.04)}
+    .place-body{padding:.65rem .75rem .75rem; display:flex; flex-direction:column; gap:.2rem; flex:1}
+    .place-badge{font-size:.62rem; font-weight:700; color:var(--teal); text-transform:uppercase; letter-spacing:.06em}
+    .place-badge.featured{color:var(--sun)}
+    .place-name{font-size:.86rem; font-weight:700; line-height:1.3; color:var(--text)}
+    .place-type{font-size:.68rem; color:var(--muted)}
+    .place-links{display:flex; gap:.35rem; flex-wrap:wrap; margin-top:auto; padding-top:.35rem}
+    .place-link{font-size:.62rem; color:var(--purple); text-decoration:none; background:rgba(162,155,254,.12); border-radius:5px; padding:.15rem .4rem; transition:background .15s}
+    .place-link:hover{background:rgba(162,155,254,.28)}
+    .place.has-wiki{border-color:rgba(78,205,196,.4); background:linear-gradient(160deg,rgba(78,205,196,.12),rgba(255,255,255,.02))}
+
+    .wiki-summary{font-size:.82rem; color:var(--muted); line-height:1.5; margin-bottom:.6rem; flex:1}
+    .wiki-link{font-size:.72rem; color:var(--teal); text-decoration:none; display:inline-block; margin-top:.4rem}
+    .wiki-link:hover{text-decoration:underline}
+
+    .clock-container{text-align:center; padding:.2rem 0; flex:1; display:flex; flex-direction:column; justify-content:center}
+    .current-time-digital{font-family:'Clash Display',sans-serif; font-size:1.8rem; font-weight:700; color:var(--teal); letter-spacing:2px; margin:.2rem 0}
+    .current-date{font-size:.7rem; color:var(--muted); margin-top:.3rem}
+    .timezone-badge{font-size:.65rem; background:rgba(78,205,196,.15); display:inline-block; padding:.2rem .6rem; border-radius:20px; margin-top:.5rem}
+    
+    .country-data { font-size: 0.85rem; line-height: 1.6; }
+    .country-data b { color: var(--teal); }
+  </style>
+</head>
+<body>
+<div class="blob blob1"></div>
+<div class="blob blob2"></div>
+<div class="blob blob3"></div>
+
+<header>
+  <div class="logo">✈ TravelScope Pro</div>
+</header>
+
+<section class="hero">
+  <h1>Descubre tu próximo Destino</h1>
+  <p>Planifica tu viaje con información en tiempo real</p>
+  <div class="search-bar">
+    <input id="cityInput" type="text" placeholder="Ej: Lima, París, Tokyo, Nueva York..."/>
+    <select id="myCurrency">
+      <option value="COP">COP (Peso colombiano)</option>
+      <option value="USD">USD (Dólar)</option>
+      <option value="EUR">EUR (Euro)</option>
+      <option value="MXN">MXN (Peso mexicano)</option>
+      <option value="GBP">GBP (Libra esterlina)</option>
+      <option value="ARS">ARS (Peso argentino)</option>
+      <option value="BRL">BRL (Real brasileño)</option>
+    </select>
+    <button class="btn-explore" onclick="explore()">Explorar ✈</button>
+  </div>
+</section>
+
+<main>
+  <div class="loading" id="loading">
+    <div class="spinner"></div>
+    <p>Consultando servicios en tiempo real...</p>
+  </div>
+  <div class="err" id="err"></div>
+
+  <div class="results" id="results">
+    <div class="city-hdr">
+      <img class="city-flag" id="flag" src="" alt="" style="display:none"/>
+      <div>
+        <div class="city-title" id="cityTitle"></div>
+        <div class="city-sub" id="citySub"></div>
+      </div>
+    </div>
+
+    <div class="photos" id="photos"></div>
+
+    <div class="cards">
+      <!-- Fila 1: Clima + País + Conversor (3 columnas) -->
+      <div class="card">
+        <div class="card-content">
+          <div class="card-lbl">🌤 Clima Local</div>
+          <div class="w-row">
+            <img id="wIcon" src="" alt="" style="width:40px"/>
+            <div class="w-temp" id="wTemp">--°C</div>
+          </div>
+          <div id="wDesc" style="font-size:.85rem; text-transform:capitalize; color:var(--muted); margin-top:.5rem"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-content">
+          <div class="card-lbl">🌍 Datos Geográficos</div>
+          <div id="countryData" class="country-data"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-content">
+          <div class="card-lbl" id="convLabel">💱 Conversor de Moneda</div>
+          <div class="inner-conv-box">
+            <div class="inner-input-group">
+              <span id="lblFrom">COP</span>
+              <input type="number" id="valFrom" value="100000" oninput="recalcular()"/>
+            </div>
+            <div style="text-align:center; font-size:.7rem; color:var(--muted); margin:.1rem 0">↕</div>
+            <div class="inner-input-group">
+              <span id="lblTo">---</span>
+              <input type="number" id="valTo" readonly placeholder="Calculando..."/>
+            </div>
+          </div>
+          <div id="rateInfo" style="font-size:.7rem; color:var(--teal); margin-top:.4rem; text-align:center"></div>
+        </div>
+      </div>
+
+      <!-- Fila 2: Mapa (1 columna) + Tips (2 columnas) -->
+      <div class="card">
+        <div class="card-content">
+          <div class="card-lbl">🗺️ Mapa de Ubicación</div>
+          <div class="map-container" id="mapBox" style="display:none">
+            <iframe id="leafletMap" loading="lazy" title="Mapa de la ciudad"></iframe>
+          </div>
+        </div>
+      </div>
+
+      <div class="card card-span-2">
+        <div class="card-content">
+          <div class="card-lbl" style="color:var(--purple)">💡 Tips Esenciales para el Viajero</div>
+          <div id="travelTips"></div>
+        </div>
+      </div>
+
+      <!-- Fila 3: Hora Actual (1 columna) + Wikipedia (2 columnas) -->
+      <div class="card">
+        <div class="card-content">
+          <div class="card-lbl" style="color:var(--sun)">🕐 Hora Local</div>
+          <div class="clock-container" id="clockContainer">
+            <div class="current-time-digital" id="currentTime">--:--:--</div>
+            <div class="current-date" id="currentDate">Cargando...</div>
+            <div class="timezone-badge" id="timezoneBadge">Zona horaria</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card card-span-2">
+        <div class="card-content">
+          <div class="card-lbl" style="color:var(--teal)">📚 Sobre el Destino</div>
+          <p class="wiki-summary" id="wikiSummary"></p>
+          <a id="wikiUrl" class="wiki-link" href="#" target="_blank" style="display:none">📖 Ver artículo completo en Wikipedia →</a>
+        </div>
+      </div>
+
+      <!-- Fila 4: Lugares turísticos (ancho completo) -->
+      <div class="card card-full">
+        <div class="card-content">
+          <div class="card-lbl">📍 Sitios de Interés Recomendados <span style="font-size:.65rem;">(Los más icónicos primero)</span></div>
+          <div class="places-grid" id="placesList"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+const API = window.location.origin;
+let currentTargetCurrency = "USD";
+let currentSourceCurrency = "COP";
+let timeUpdateInterval = null;
+
+document.getElementById('cityInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') explore();
+});
+
+async function explore() {
+  const city   = document.getElementById('cityInput').value.trim();
+  const myCurr = document.getElementById('myCurrency').value;
+  if (!city) {
+    showErr('❌ Por favor ingresa el nombre de una ciudad.');
+    return;
+  }
+  
+  if (timeUpdateInterval) {
+    clearInterval(timeUpdateInterval);
+    timeUpdateInterval = null;
+  }
+  
+  document.getElementById('loading').classList.add('on');
+  document.getElementById('results').classList.remove('on');
+  document.getElementById('err').classList.remove('on');
+  currentSourceCurrency = myCurr;
+
+  try {
+    const amount   = document.getElementById('valFrom').value || 100000;
+    const response = await fetch(`${API}/explore?city=${encodeURIComponent(city)}&currency_from=${myCurr}&amount=${amount}`);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = await response.json();
+    render(data);
+  } catch (error) {
+    showErr(`❌ Error al conectar: ${error.message}`);
+  } finally {
+    document.getElementById('loading').classList.remove('on');
+  }
+}
+
+function showErr(msg) {
+  const el = document.getElementById('err');
+  el.textContent = msg;
+  el.classList.add('on');
+}
+
+let lastTimeData = null;
+
+function updateClockFromOffset(timeData) {
+  if (!timeData || !timeData.datetime) return;
+
+  const baseDate = new Date(timeData.datetime.replace(' ', 'T') + timeData.utc_offset);
+  if (isNaN(baseDate.getTime())) return;
+
+  const elapsed = Math.floor((Date.now() - baseDate.getTime()) / 1000);
+  const updatedUTC = new Date(baseDate.getTime() + elapsed * 1000);
+
+  const formatter = new Intl.DateTimeFormat('es-ES', {
+    timeZone: timeData.timezone,
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hour12: false
+  });
+  const dateFormatter = new Intl.DateTimeFormat('es-ES', {
+    timeZone: timeData.timezone,
+    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+  });
+
+  document.getElementById('currentTime').textContent = formatter.format(updatedUTC);
+  const dateStr = dateFormatter.format(updatedUTC);
+  document.getElementById('currentDate').textContent = dateStr.charAt(0).toUpperCase() + dateStr.slice(1);
+}
+
+function render(data) {
+  const co = data.country  || {};
+  const pl = data.places   || {};
+  const wk = data.wiki     || {};
+  const tm = data.time     || {};
+
+  document.getElementById('cityTitle').textContent = data.query.city;
+  document.getElementById('citySub').textContent   = co.official_name || co.name || 'Destino Detectado';
+  const fl = document.getElementById('flag');
+  if (co.flag_url) { fl.src = co.flag_url; fl.style.display = 'block'; }
+  else fl.style.display = 'none';
+
+  const phBox = document.getElementById('photos');
+  phBox.innerHTML = '';
+  ((data.photos || {}).photos || []).forEach(p => {
+    phBox.innerHTML += `<div class="photo"><img src="${p.url}" alt="${p.description || ''}" loading="lazy"/></div>`;
+  });
+
+  const w = data.weather || {};
+  if (w.temperature !== undefined) {
+    document.getElementById('wTemp').textContent = Math.round(w.temperature) + '°C';
+    document.getElementById('wDesc').textContent = `${w.description} · Humedad: ${w.humidity}% · Viento: ${w.wind_speed} m/s`;
+    document.getElementById('wIcon').src = w.icon_url || '';
+  }
+
+  const moneda = co.currency ? `${co.currency.name} (${co.currency.symbol || co.currency.code})` : 'N/A';
+  document.getElementById('countryData').innerHTML = `
+    <b>Capital:</b> ${co.capital || 'N/A'}<br>
+    <b>Continente:</b> ${co.region || 'N/A'} — ${co.subregion || ''}<br>
+    <b>Idioma:</b> ${co.language || 'N/A'}<br>
+    <b>Población:</b> ${co.population ? (co.population/1e6).toFixed(1)+' M' : 'N/A'}<br>
+    <b>Moneda:</b> ${moneda}
+  `;
+
+  if (pl.lat && pl.lon) {
+    document.getElementById('leafletMap').src =
+      `https://www.openstreetmap.org/export/embed.html?bbox=${pl.lon-.1},${pl.lat-.08},${pl.lon+.1},${pl.lat+.08}&layer=mapnik&marker=${pl.lat},${pl.lon}`;
+    document.getElementById('mapBox').style.display = 'block';
+  } else {
+    document.getElementById('mapBox').style.display = 'none';
+  }
+
+  let tipsHTML = '';
+  if (co.language) {
+    const ext = !['spanish','español'].includes(co.language.toLowerCase());
+    tipsHTML += `<div class="tip-item"><span class="tip-icon">🗣️</span><div><b>Idioma:</b> Se habla <strong>${co.language}</strong>. ${ext ? '📱 Lleva una app de traducción.' : '🎉 ¡Mismo idioma!'}</div></div>`;
+  }
+  if (co.timezone) {
+    tipsHTML += `<div class="tip-item"><span class="tip-icon">⏰</span><div><b>Zona horaria:</b> <code>${co.timezone}</code>. Tenlo presente al programar vuelos.</div></div>`;
+  }
+  if (w.temperature !== undefined) {
+    let ropa = w.temperature < 10 ? '🥶 Muy frío — abrigo térmico, bufanda y guantes.' :
+               w.temperature < 15 ? '🧥 Frío — chaqueta abrigadora y calzado cerrado.' :
+               w.temperature < 25 ? '👕 Templado — ropa cómoda, quizás una chaqueta ligera.' :
+               w.temperature < 30 ? '🕶️ Caluroso — ropa fresca, gafas de sol y bloqueador.' :
+                                    '🥵 Muy caluroso — ropa ligera e hidratación constante.';
+    if (w.description && (w.description.includes('lluvia') || w.description.includes('rain')))
+      ropa += ' 🌧️ ¡Hay lluvia, no olvides paraguas!';
+    tipsHTML += `<div class="tip-item"><span class="tip-icon">🧳</span><div><b>Equipaje:</b> ${ropa}</div></div>`;
+  }
+  document.getElementById('travelTips').innerHTML = tipsHTML || '<div class="tip-item">✨ Sin recomendaciones específicas.</div>';
+
+  const cur = data.currency || {};
+  currentTargetCurrency = cur.to || 'USD';
+  document.getElementById('convLabel').textContent = `💱 Convertir a ${currentTargetCurrency}`;
+  document.getElementById('lblFrom').textContent   = currentSourceCurrency;
+  document.getElementById('lblTo').textContent     = currentTargetCurrency;
+  if (cur.converted !== undefined) {
+    document.getElementById('valTo').value = cur.converted;
+    document.getElementById('rateInfo').textContent =
+      currentSourceCurrency === currentTargetCurrency
+        ? `✅ Tu moneda es la moneda local`
+        : `Tasa: 1 ${currentSourceCurrency} = ${(cur.rate||0).toFixed(4)} ${currentTargetCurrency}`;
+  } else {
+    document.getElementById('valTo').value = '';
+    document.getElementById('rateInfo').textContent = 'Conversión no disponible';
+  }
+
+  document.getElementById('wikiSummary').textContent = wk.summary || 'Información no disponible.';
+  const wikiUrl = document.getElementById('wikiUrl');
+  if (wk.wiki_url) { wikiUrl.href = wk.wiki_url; wikiUrl.style.display = 'inline-block'; }
+  else wikiUrl.style.display = 'none';
+
+  // Hora actual
+  if (tm.datetime) {
+    updateClockFromOffset(tm);
+    if (timeUpdateInterval) clearInterval(timeUpdateInterval);
+    timeUpdateInterval = setInterval(() => updateClockFromOffset(tm), 1000);
+    document.getElementById('timezoneBadge').innerHTML = `🕐 ${tm.timezone || 'UTC'}`;
+  } else {
+    document.getElementById('currentTime').textContent = '--:--:--';
+    document.getElementById('currentDate').textContent = 'No disponible';
+    document.getElementById('timezoneBadge').textContent = 'Zona horaria no disponible';
+  }
+
+  // Lugares turísticos
+  const plBox = document.getElementById('placesList');
+  plBox.innerHTML = '';
+  const listado = pl.places || [];
+  if (!listado.length) {
+    plBox.innerHTML = '<div style="color:var(--muted); padding:.5rem; grid-column:1/-1; text-align:center">📍 No se encontraron atracciones registradas.</div>';
+  } else {
+    listado.forEach((p, i) => {
+      const wikiSlug    = p.wikipedia ? p.wikipedia.replace(/^[a-z]+:/, '') : '';
+      const wikiLink    = wikiSlug ? `<a class="place-link" href="https://es.wikipedia.org/wiki/${encodeURIComponent(wikiSlug)}" target="_blank">📖 Wikipedia</a>` : '';
+      const websiteLink = p.website  ? `<a class="place-link" href="${p.website}" target="_blank">🔗 Web</a>` : '';
+      const hasWiki     = wikiSlug ? 'has-wiki' : '';
+      
+      const thumbUrl = (p.lat && p.lon)
+        ? `https://staticmap.openstreetmap.de/staticmap.php?center=${p.lat},${p.lon}&zoom=15&size=300x90&markers=${p.lat},${p.lon},red`
+        : '';
+      const thumbHTML = thumbUrl
+        ? `<img class="place-thumb" src="${thumbUrl}" alt="${p.name}" loading="lazy" onerror="this.style.display='none'"/>`
+        : `<div class="place-thumb" style="display:flex;align-items:center;justify-content:center;font-size:2rem">${p.icon||'📍'}</div>`;
+      
+      plBox.innerHTML += `
+        <div class="place ${hasWiki}">
+          ${thumbHTML}
+          <div class="place-body">
+            <div class="place-badge ${i < 2 ? 'featured' : ''}">${p.icon||'📍'} ${i < 3 ? '⭐' : '#'+(i+1)}</div>
+            <div class="place-name">${escapeHtml(p.name)}</div>
+            <div class="place-type">${p.label||p.type||'Punto de Interés'}</div>
+            ${(websiteLink||wikiLink) ? `<div class="place-links">${websiteLink}${wikiLink}</div>` : ''}
+          </div>
+        </div>`;
+    });
+  }
+
+  document.getElementById('results').classList.add('on');
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return str.replace(/[&<>]/g, function(m) {
+    if (m === '&') return '&amp;';
+    if (m === '<') return '&lt;';
+    if (m === '>') return '&gt;';
+    return m;
+  });
+}
+
+async function recalcular() {
+  const amt = document.getElementById('valFrom').value;
+  if (!amt || amt <= 0) return;
+  try {
+    const r = await fetch(`${API}/convert?currency_from=${currentSourceCurrency}&currency_to=${currentTargetCurrency}&amount=${amt}`);
+    const d = await r.json();
+    if (d.converted !== undefined) {
+      document.getElementById('valTo').value = d.converted;
+      if (d.rate) document.getElementById('rateInfo').textContent =
+        `Tasa actualizada: 1 ${currentSourceCurrency} = ${d.rate.toFixed(4)} ${currentTargetCurrency}`;
+    }
+  } catch (e) { console.error(e); }
+}
+</script>
+</body>
+</html>
