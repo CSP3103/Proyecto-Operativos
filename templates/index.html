@@ -351,31 +351,42 @@ function showErr(msg) {
 }
 
 let lastTimeData = null;
+let clockInterval = null;
 
 function updateClockFromOffset(timeData) {
   if (!timeData || !timeData.datetime) return;
 
-  const baseDate = new Date(timeData.datetime.replace(' ', 'T') + timeData.utc_offset);
+  // Crear fecha base desde el datetime UTC
+  let baseDate;
+  if (timeData.datetime.includes(' ')) {
+    baseDate = new Date(timeData.datetime.replace(' ', 'T') + 'Z');
+  } else {
+    baseDate = new Date(timeData.datetime + 'Z');
+  }
+  
   if (isNaN(baseDate.getTime())) return;
 
-  const elapsed = Math.floor((Date.now() - baseDate.getTime()) / 1000);
-  const updatedUTC = new Date(baseDate.getTime() + elapsed * 1000);
-
-  const formatter = new Intl.DateTimeFormat('es-ES', {
-    timeZone: timeData.timezone,
-    hour: '2-digit', minute: '2-digit', second: '2-digit',
-    hour12: false
-  });
-  const dateFormatter = new Intl.DateTimeFormat('es-ES', {
-    timeZone: timeData.timezone,
-    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
-  });
-
-  document.getElementById('currentTime').textContent = formatter.format(updatedUTC);
-  const dateStr = dateFormatter.format(updatedUTC);
-  document.getElementById('currentDate').textContent = dateStr.charAt(0).toUpperCase() + dateStr.slice(1);
+  function update() {
+    const elapsed = (Date.now() - baseDate.getTime()) / 1000;
+    const currentUTC = new Date(baseDate.getTime() + (elapsed * 1000));
+    
+    // Formatear sin depender de utc_offset
+    const horas = String(currentUTC.getUTCHours()).padStart(2, '0');
+    const minutos = String(currentUTC.getUTCMinutes()).padStart(2, '0');
+    const segundos = String(currentUTC.getUTCSeconds()).padStart(2, '0');
+    
+    const opcionesFecha = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+    const fecha = new Date(currentUTC);
+    
+    document.getElementById('currentTime').textContent = `${horas}:${minutos}:${segundos}`;
+    document.getElementById('currentDate').textContent = fecha.toLocaleDateString('es-ES', opcionesFecha);
+    document.getElementById('timezoneBadge').innerHTML = `🕐 ${timeData.timezone || 'UTC'}`;
+  }
+  
+  update();
+  if (clockInterval) clearInterval(clockInterval);
+  clockInterval = setInterval(update, 1000);
 }
-
 function render(data) {
   const co = data.country  || {};
   const pl = data.places   || {};
@@ -559,24 +570,7 @@ function iniciarActualizacionTasa() {
     }, 30000);
 }
 
-  // ========== HORA ACTUAL (VERSIÓN SEGURA) ==========
-  const timeData = data?.time || {};
-  
-  const currentTimeEl = document.getElementById('currentTime');
-  const currentDateEl = document.getElementById('currentDate');
-  const timezoneBadgeEl = document.getElementById('timezoneBadge');
-  
-  if (currentTimeEl) {
-      if (timeData.time) {
-          currentTimeEl.textContent = timeData.time;
-          if (currentDateEl) currentDateEl.textContent = timeData.date || '';
-          if (timezoneBadgeEl) timezoneBadgeEl.innerHTML = `🕐 ${timeData.timezone || 'UTC'}`;
-      } else {
-          currentTimeEl.textContent = '--:--:--';
-          if (currentDateEl) currentDateEl.textContent = 'No disponible';
-          if (timezoneBadgeEl) timezoneBadgeEl.innerHTML = 'UTC';
-      }
-  }
+
 </script>
 </body>
 </html>
