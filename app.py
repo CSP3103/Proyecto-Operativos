@@ -495,59 +495,73 @@ def _fetch(name, url, params):
 
 @app.route("/explore")
 def explore():
-    city          = request.args.get("city", "").strip()
+    city = request.args.get("city", "").strip()
     currency_from = request.args.get("currency_from", "COP")
-    amount        = request.args.get("amount", 100000, type=float)
+    amount = request.args.get("amount", 100000, type=float)
 
     if not city:
         return jsonify({"error": "Falta el parámetro: city"}), 400
 
-    # Geocoding inteligente (fuente de verdad para lat/lon y país)
+    # Geocoding
     lat, lon, country_code, timezone = geocode_city(city)
 
     # Datos del país
     target_currency = "USD"
-    country_info    = {}
+    country_info = {}
     if country_code:
         try:
             c_res = requests.get(
                 f"{request.host_url}country", params={"code": country_code}, timeout=8
             ).json()
             if "error" not in c_res and c_res.get("official_name"):
-                country_info    = c_res
+                country_info = c_res
                 target_currency = country_info.get("currency", {}).get("code", "USD")
         except Exception:
             pass
 
-    base = get_base_url()
+    # Construir URLs BASE de forma correcta
+    if request.host_url.startswith('http://localhost'):
+        base = request.host_url.rstrip('/')
+    else:
+        # Para producción en Render
+        base = 'https://travelscope-pro.onrender.com'
+
+    # Llamadas a las APIs
+    def fetch_api(name, url, params):
+        try:
+            r = requests.get(url, params=params, timeout=15)
+            r.raise_for_status()
+            return name, r.json()
+        except Exception as e:
+            return name, {"error": str(e), "status": "failed"}
 
     calls = {
-        "weather":  (f"{base}/weather",        {"city": city, "country": country_code}),
-        "photos":   (f"{base}/photos",         {"city": city, "count": 5}),
-        "currency": (f"{base}/currency",       {"from": currency_from, "to": target_currency, "amount": amount}),
-        "places":   (f"{base}/places",         {"city": city, "country": country_code, "lat": lat or "", "lon": lon or "", "limit": 8}),
-        "wiki":     (f"{base}/wiki",           {"city": city, "country": country_info.get("name", "")}),
-        "time":     (f"{base}/current-time",   {"city": city, "country": country_code}),
+        "weather": (f"{base}/weather", {"city": city, "country": country_code}),
+        "photos": (f"{base}/photos", {"city": city, "count": 5}),
+        "currency": (f"{base}/currency", {"from": currency_from, "to": target_currency, "amount": amount}),
+        "places": (f"{base}/places", {"city": city, "country": country_code, "lat": lat or "", "lon": lon or "", "limit": 8}),
+        "wiki": (f"{base}/wiki", {"city": city, "country": country_info.get("name", "")}),
+        "time": (f"{base}/current-time", {"city": city, "country": country_code}),
     }
 
-    results = {"country": country_info, "timezone": timezone}
+    results = {"country": country_info}
     with ThreadPoolExecutor(max_workers=6) as executor:
-        futures = {executor.submit(_fetch, name, url, params): name for name, (url, params) in calls.items()}
+        futures = {executor.submit(fetch_api, name, url, params): name for name, (url, params) in calls.items()}
         for future in as_completed(futures):
             name, data = future.result()
             results[name] = data
 
     return jsonify({
-        "query":   {"city": city, "country": country_code, "currency_from": currency_from, "amount": amount},
+        "query": {"city": city, "country": country_code, "currency_from": currency_from, "amount": amount},
         "weather": results.get("weather", {}),
         "country": results.get("country", {}),
-        "photos":  results.get("photos", {}),
+        "photos": results.get("photos", {}),
         "currency": results.get("currency", {}),
-        "wiki":    results.get("wiki", {}),
-        "places":  {"places": results.get("places", {}).get("places", []), "lat": lat, "lon": lon},
-        "time":    results.get("time", {}),
+        "wiki": results.get("wiki", {}),
+        "places": {"places": results.get("places", {}).get("places", []), "lat": lat, "lon": lon},
+        "time": results.get("time", {}),
     })
-
+    
 @app.route("/convert")
 def convert():
     currency_from = request.args.get("currency_from", "COP")
