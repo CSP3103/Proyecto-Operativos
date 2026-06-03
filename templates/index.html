@@ -520,15 +520,42 @@ function escapeHtml(str) {
 async function recalcular() {
   const amt = document.getElementById('valFrom').value;
   if (!amt || amt <= 0) return;
+  
+  const fromCurrency = currentSourceCurrency;
+  const toCurrency = currentTargetCurrency;
+  
+  document.getElementById('valTo').value = '...';
+  document.getElementById('rateInfo').innerHTML = '🔄 Actualizando tasa...';
+  
   try {
-    const r = await fetch(`${API}/convert?currency_from=${currentSourceCurrency}&currency_to=${currentTargetCurrency}&amount=${amt}`);
-    const d = await r.json();
-    if (d.converted !== undefined) {
-      document.getElementById('valTo').value = d.converted;
-      if (d.rate) document.getElementById('rateInfo').textContent =
-        `Tasa actualizada: 1 ${currentSourceCurrency} = ${d.rate.toFixed(4)} ${currentTargetCurrency}`;
+    const response = await fetch(`${API}/convert?currency_from=${fromCurrency}&currency_to=${toCurrency}&amount=${amt}`);
+    const data = await response.json();
+    
+    if (data.converted !== undefined && !data.error) {
+      document.getElementById('valTo').value = data.converted;
+      document.getElementById('rateInfo').innerHTML = 
+        `💱 1 ${fromCurrency} = ${data.rate.toFixed(4)} ${toCurrency} | ${data.date || ''}`;
+    } else {
+      document.getElementById('valTo').value = 'Error';
+      document.getElementById('rateInfo').innerHTML = '❌ No se pudo obtener la tasa';
     }
-  } catch (e) { console.error(e); }
+  } catch (error) {
+    console.error('Error:', error);
+    document.getElementById('valTo').value = 'Error';
+    document.getElementById('rateInfo').innerHTML = '❌ Error al convertir';
+  }
+}
+
+let intervalTasa = null;
+
+function iniciarActualizacionTasa() {
+    if (intervalTasa) clearInterval(intervalTasa);
+    intervalTasa = setInterval(() => {
+        if (currentSourceCurrency && currentTargetCurrency && 
+            currentSourceCurrency !== currentTargetCurrency) {
+            recalcular();
+        }
+    }, 30000);
 }
 </script>
 </body>
