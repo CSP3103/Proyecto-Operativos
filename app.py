@@ -598,55 +598,49 @@ def explore():
                     "from": currency_from,
                     "to": target_currency,
                     "amount": amount,
-                    "converted": round(amount * rate, 4),
+                    "converted": round(amount * rate, 2),
                     "rate": rate,
                     "date": d.get("time_last_update_utc", "")[:16],
                 }
     except Exception as e:
         currency_data = {"error": str(e)}
 
-    # ========== 6. LUGARES ==========
+    # ========== 6. LUGARES TURÍSTICOS ==========
     places_list = []
     if lat and lon:
         try:
-            filters = "\n".join([
-                f'  node["{k}"="{v}"]["name"](around:15000,{lat},{lon});\n'
-                f'  way["{k}"="{v}"]["name"](around:15000,{lat},{lon});'
-                for k, v in OVERPASS_TAGS[:5]
-            ])
-            overpass_query = f"""[out:json][timeout:25];
-(
-{filters}
-);
-out center tags 20;"""
-            op = requests.post("https://overpass-api.de/api/interpreter", data={"data": overpass_query}, timeout=25)
+            query = f"""
+            [out:json][timeout:15];
+            (
+              node["tourism"="attraction"](around:10000,{lat},{lon});
+              node["historic"="monument"](around:10000,{lat},{lon});
+              node["tourism"="museum"](around:10000,{lat},{lon});
+              way["tourism"="attraction"](around:10000,{lat},{lon});
+              way["historic"="monument"](around:10000,{lat},{lon});
+            );
+            out center limit 10;
+            """
+            op = requests.post("https://overpass-api.de/api/interpreter", data={"data": query}, timeout=20)
             if op.status_code == 200:
                 elements = op.json().get("elements", [])
-                seen = set()
                 for el in elements[:8]:
                     tags = el.get("tags", {})
-                    name = (tags.get("name:es") or tags.get("name") or "").strip()
-                    if not name or name in seen:
+                    name = tags.get("name", "").strip()
+                    if not name or len(name) < 3:
                         continue
-                    seen.add(name)
                     if el.get("type") == "node":
                         p_lat, p_lon = el.get("lat"), el.get("lon")
                     else:
-                        c = el.get("center", {})
-                        p_lat, p_lon = c.get("lat"), c.get("lon")
+                        center = el.get("center", {})
+                        p_lat, p_lon = center.get("lat"), center.get("lon")
                     if not p_lat:
                         continue
-                    place_type = "default"
-                    for k, v in OVERPASS_TAGS:
-                        if tags.get(k) == v:
-                            place_type = v
-                            break
                     places_list.append({
                         "name": name,
-                        "type": place_type,
-                        "icon": TYPE_META.get(place_type, TYPE_META["default"])[0],
-                        "label": TYPE_META.get(place_type, TYPE_META["default"])[1],
-                        "address": tags.get("addr:street", "") or "",
+                        "type": "attraction",
+                        "icon": "📍",
+                        "label": "Lugar Turístico",
+                        "address": tags.get("addr:street", ""),
                         "website": tags.get("website", ""),
                         "wikipedia": "",
                         "lat": p_lat,
@@ -658,47 +652,74 @@ out center tags 20;"""
     # ========== 7. WIKIPEDIA ==========
     wiki_data = {}
     try:
-        r = requests.get(f"https://es.wikipedia.org/api/rest_v1/page/summary/{city}", timeout=10)
+        r = requests.get(f"https://es.wikipedia.org/api/rest_v1/page/summary/{city}", timeout=8)
         if r.status_code == 200:
             d = r.json()
-            wiki_data = {
-                "title": d.get("title", city),
-                "summary": d.get("extract", "")[:500],
-                "image_url": (d.get("thumbnail") or {}).get("source", ""),
-                "wiki_url": d.get("content_urls", {}).get("desktop", {}).get("page", ""),
-            }
-        else:
-            # Fallback a inglés
-            r = requests.get(f"https://en.wikipedia.org/api/rest_v1/page/summary/{city}", timeout=10)
-            if r.status_code == 200:
-                d = r.json()
+            if d.get("extract"):
                 wiki_data = {
                     "title": d.get("title", city),
                     "summary": d.get("extract", "")[:500],
                     "image_url": (d.get("thumbnail") or {}).get("source", ""),
                     "wiki_url": d.get("content_urls", {}).get("desktop", {}).get("page", ""),
                 }
+        else:
+            r = requests.get(f"https://en.wikipedia.org/api/rest_v1/page/summary/{city}", timeout=8)
+            if r.status_code == 200:
+                d = r.json()
+                if d.get("extract"):
+                    wiki_data = {
+                        "title": d.get("title", city),
+                        "summary": d.get("extract", "")[:500],
+                        "image_url": (d.get("thumbnail") or {}).get("source", ""),
+                        "wiki_url": d.get("content_urls", {}).get("desktop", {}).get("page", ""),
+                    }
     except Exception as e:
-        wiki_data = {"error": str(e)}
+        print(f"Error wiki: {e}")
+
+    if not wiki_data:
+        wiki_data = {
+            "title": city,
+            "summary": f"{city} es un destino fascinante con rica historia y cultura para explorar.",
+            "image_url": "",
+            "wiki_url": f"https://es.wikipedia.org/wiki/{city.replace(' ', '_')}",
+        }
 
     # ========== 8. HORA ACTUAL ==========
     time_data = {}
     if lat and lon:
         try:
-            from timezonefinder import TimezoneFinder
-            tf = TimezoneFinder()
-            tz_str = tf.timezone_at(lat=lat, lng=lon) or "UTC"
-            tz = pytz.timezone(tz_str)
-            now = datetime.now(tz)
+            r = requests.get(f"http://api.geonames.org/timezoneJSON", params={"lat": lat, "lng": lon, "username": "demo"}, timeout=8)
+            if r.status_code == 200:
+                geo_data = r.json()
+                tz_str = geo_data.get("timezoneId", "UTC")
+                try:
+                    tz = pytz.timezone(tz_str)
+                    now = datetime.now(tz)
+                    time_data = {
+                        "datetime": now.strftime("%Y-%m-%d %H:%M:%S"),
+                        "timezone": tz_str,
+                        "date": now.strftime("%A, %d de %B de %Y"),
+                        "time": now.strftime("%H:%M:%S"),
+                        "is_daytime": 6 <= now.hour < 18
+                    }
+                except:
+                    now = datetime.utcnow()
+                    time_data = {
+                        "datetime": now.strftime("%Y-%m-%d %H:%M:%S"),
+                        "timezone": "UTC",
+                        "date": now.strftime("%A, %d de %B de %Y"),
+                        "time": now.strftime("%H:%M:%S"),
+                        "is_daytime": 6 <= now.hour < 18
+                    }
+        except Exception as e:
+            now = datetime.utcnow()
             time_data = {
                 "datetime": now.strftime("%Y-%m-%d %H:%M:%S"),
-                "timezone": tz_str,
+                "timezone": "UTC",
                 "date": now.strftime("%A, %d de %B de %Y"),
                 "time": now.strftime("%H:%M:%S"),
                 "is_daytime": 6 <= now.hour < 18
             }
-        except Exception as e:
-            time_data = {"error": str(e)}
 
     # ========== RESPUESTA FINAL ==========
     return jsonify({
@@ -714,16 +735,46 @@ out center tags 20;"""
     
 @app.route("/convert")
 def convert():
-    currency_from = request.args.get("currency_from", "COP")
-    currency_to   = request.args.get("currency_to", "USD")
-    amount        = request.args.get("amount", 1.0, type=float)
+    currency_from = request.args.get("currency_from", "USD").upper()
+    currency_to = request.args.get("currency_to", "EUR").upper()
+    amount = request.args.get("amount", 1.0, type=float)
+    
     try:
-        r = requests.get(
-            f"{request.host_url}currency",
-            params={"from": currency_from, "to": currency_to, "amount": amount},
-            timeout=8,
-        )
-        return jsonify(r.json())
+        r = requests.get(f"https://api.exchangerate-api.com/v4/latest/{currency_from}", timeout=8)
+        if r.status_code == 200:
+            data = r.json()
+            rates = data.get("rates", {})
+            if currency_to in rates:
+                rate = rates[currency_to]
+                converted = round(amount * rate, 2)
+                return jsonify({
+                    "from": currency_from,
+                    "to": currency_to,
+                    "amount": amount,
+                    "converted": converted,
+                    "rate": rate,
+                    "date": data.get("date", ""),
+                    "success": True
+                })
+        
+        r = requests.get(f"https://open.er-api.com/v6/latest/{currency_from}", timeout=8)
+        if r.status_code == 200:
+            data = r.json()
+            rates = data.get("rates", {})
+            if currency_to in rates:
+                rate = rates[currency_to]
+                converted = round(amount * rate, 2)
+                return jsonify({
+                    "from": currency_from,
+                    "to": currency_to,
+                    "amount": amount,
+                    "converted": converted,
+                    "rate": rate,
+                    "date": data.get("time_last_update_utc", ""),
+                    "success": True
+                })
+        
+        return jsonify({"error": "Moneda no soportada", "success": False}), 400
+        
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
+        return jsonify({"error": str(e), "success": False}), 500
