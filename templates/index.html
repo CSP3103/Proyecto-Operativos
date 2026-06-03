@@ -558,6 +558,23 @@ function iniciarActualizacionTasa() {
         }
     }, 30000);
 }
+
+  // ========== HORA ACTUAL - DIAGNÓSTICO ==========
+  const tm = data.time || {};
+  
+  // 🔥 ESTO ES NUEVO - PARA VER SI LLEGAN LOS DATOS
+  console.log("🔍 DATOS DE HORA RECIBIDOS:", tm);
+  
+  // Mostrar la hora de forma SIMPLE (sin reloj en tiempo real)
+  if (tm.time) {
+      document.getElementById('currentTime').innerHTML = tm.time;
+      document.getElementById('currentDate').innerHTML = tm.date || 'Fecha no disponible';
+      document.getElementById('timezoneBadge').innerHTML = `🕐 ${tm.timezone || 'UTC'}`;
+  } else {
+      document.getElementById('currentTime').innerHTML = '--:--:--';
+      document.getElementById('currentDate').innerHTML = 'No disponible';
+      document.getElementById('timezoneBadge').innerHTML = 'Zona horaria no disponible';
+  }
 </script>
 </body>
 </html>
